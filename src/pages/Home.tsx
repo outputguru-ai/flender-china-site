@@ -62,6 +62,13 @@ const t = {
       optionIn: '状态：已登录',
       optionOut: '状态：未登录',
     },
+    loginModal: {
+      title: '需要登录',
+      desc: '使用在线客服前请先登录。以下为模拟账号，点击「模拟登录」即可完成登录并继续。',
+      accountLabel: '模拟账号',
+      confirm: '模拟登录',
+      cancel: '取消',
+    },
     authPanel: {
       title: '登录状态 · 供集成系统读取',
       comment: '// 其他系统集成时读取 window.FLENDER_AUTH 判断是否登录',
@@ -112,6 +119,13 @@ const t = {
       optionIn: 'Status: Signed in',
       optionOut: 'Status: Guest',
     },
+    loginModal: {
+      title: 'Sign in required',
+      desc: 'Please sign in before using the customer service. Below is a demo account — click "Sign in (demo)" to continue.',
+      accountLabel: 'Demo account',
+      confirm: 'Sign in (demo)',
+      cancel: 'Cancel',
+    },
     authPanel: {
       title: 'Auth state · for integrated systems',
       comment: '// Integrated systems read window.FLENDER_AUTH to check login',
@@ -160,6 +174,7 @@ export default function Home() {
   const [lang, setLang] = useState<Lang>('zh')
   const [auth, setAuth] = useState<AuthState>(readStoredAuth)
   const [authMenuOpen, setAuthMenuOpen] = useState(false)
+  const [showLoginModal, setShowLoginModal] = useState(false)
   const authMenuRef = useRef<HTMLDivElement>(null)
   const s = t[lang]
 
@@ -180,6 +195,26 @@ export default function Home() {
     return () => document.removeEventListener('mousedown', close)
   }, [authMenuOpen])
 
+  const scrollToContact = () => {
+    document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  // 点击「联系我们」：未登录先弹登录框，登录成功后再继续
+  const handleContactClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (auth.isLoggedIn) {
+      scrollToContact()
+    } else {
+      setShowLoginModal(true)
+    }
+  }
+
+  const handleModalLogin = () => {
+    setAuth(loggedInState())
+    setShowLoginModal(false)
+    setTimeout(scrollToContact, 100)
+  }
+
   return (
     <div className="min-h-screen bg-black text-white antialiased">
       {/* 顶部导航 */}
@@ -194,6 +229,7 @@ export default function Home() {
             <a href="#sustainability" className="transition hover:text-white">{s.nav.sustainability}</a>
             <a
               href="#contact"
+              onClick={handleContactClick}
               className="border border-[#0098DB] px-4 py-1.5 text-[#0098DB] transition hover:bg-[#0098DB] hover:text-white"
             >
               {s.nav.contact}
@@ -362,6 +398,41 @@ export default function Home() {
           <p className="text-xs text-white/30">{s.footer.note}</p>
         </div>
       </footer>
+
+      {/* 登录引导弹窗：未登录点击「联系我们」时弹出 */}
+      {showLoginModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4"
+          onClick={() => setShowLoginModal(false)}
+        >
+          <div
+            className="w-full max-w-sm border border-white/10 bg-[#0d0d0d] p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold">{s.loginModal.title}</h3>
+            <p className="mt-3 text-sm leading-relaxed text-white/60">{s.loginModal.desc}</p>
+            <div className="mt-6 border border-white/10 bg-black p-4">
+              <p className="text-xs tracking-wide text-white/40">{s.loginModal.accountLabel}</p>
+              <p className="mt-1.5 text-sm font-medium text-white">{DEMO_USER.name}</p>
+              <p className="mt-0.5 text-xs text-white/50">{DEMO_USER.email}</p>
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={handleModalLogin}
+                className="flex-1 bg-[#0098DB] py-2.5 text-sm font-medium text-white transition hover:bg-[#007fb8]"
+              >
+                {s.loginModal.confirm}
+              </button>
+              <button
+                onClick={() => setShowLoginModal(false)}
+                className="flex-1 border border-white/30 py-2.5 text-sm text-white/80 transition hover:border-white hover:text-white"
+              >
+                {s.loginModal.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
