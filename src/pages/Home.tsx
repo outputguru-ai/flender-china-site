@@ -1,11 +1,71 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import '../App.css'
 
 type Lang = 'zh' | 'en'
 
+interface AuthUser {
+  id: string
+  name: string
+  email: string
+}
+
+interface AuthState {
+  isLoggedIn: boolean
+  user: AuthUser | null
+  loginAt: string | null
+}
+
+/* ---------- 登录状态发布：集成系统可通过以下任一方式读取 ----------
+ * 1. window.FLENDER_AUTH            —— 全局变量，实时同步
+ * 2. localStorage「flender_auth_state」—— 刷新后仍可读取
+ * 3. window 事件「flender:auth-change」—— 状态变化时派发，detail 为新状态
+ * ------------------------------------------------------------------ */
+const AUTH_STORAGE_KEY = 'flender_auth_state'
+const AUTH_EVENT = 'flender:auth-change'
+
+const DEMO_USER: AuthUser = { id: 'u1001', name: 'Demo User', email: 'demo@flender.com' }
+
+const loggedInState = (): AuthState => ({
+  isLoggedIn: true,
+  user: DEMO_USER,
+  loginAt: new Date().toISOString(),
+})
+
+const loggedOutState = (): AuthState => ({ isLoggedIn: false, user: null, loginAt: null })
+
+function readStoredAuth(): AuthState {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY)
+    if (raw) return JSON.parse(raw) as AuthState
+  } catch {
+    /* ignore */
+  }
+  return loggedOutState()
+}
+
+function publishAuth(state: AuthState) {
+  ;(window as unknown as Record<string, unknown>).FLENDER_AUTH = state
+  try {
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    /* ignore */
+  }
+  window.dispatchEvent(new CustomEvent(AUTH_EVENT, { detail: state }))
+}
+
 const t = {
   zh: {
     nav: { products: '产品', company: '公司', sustainability: '可持续性', contact: '联系我们' },
+    auth: {
+      login: '登录',
+      loggedIn: '已登录',
+      optionIn: '状态：已登录',
+      optionOut: '状态：未登录',
+    },
+    authPanel: {
+      title: '登录状态 · 供集成系统读取',
+      comment: '// 其他系统集成时读取 window.FLENDER_AUTH 判断是否登录',
+    },
     hero: {
       kicker: '125 年传动技术',
       titleA: '驱动世界',
@@ -46,6 +106,16 @@ const t = {
   },
   en: {
     nav: { products: 'Products', company: 'Company', sustainability: 'Sustainability', contact: 'Contact' },
+    auth: {
+      login: 'Sign in',
+      loggedIn: 'Signed in',
+      optionIn: 'Status: Signed in',
+      optionOut: 'Status: Guest',
+    },
+    authPanel: {
+      title: 'Auth state · for integrated systems',
+      comment: '// Integrated systems read window.FLENDER_AUTH to check login',
+    },
     hero: {
       kicker: '125 YEARS OF DRIVE TECHNOLOGY',
       titleA: 'Driving the world',
@@ -88,7 +158,29 @@ const t = {
 
 export default function Home() {
   const [lang, setLang] = useState<Lang>('zh')
+  const [auth, setAuth] = useState<AuthState>(readStoredAuth)
+  const [authMenuOpen, setAuthMenuOpen] = useState(false)
+  const authMenuRef = useRef<HTMLDivElement>(null)
   const s = t[lang]
+
+  // 状态同步到 window.FLENDER_AUTH / localStorage / 自定义事件
+  useEffect(() => {
+    publishAuth(auth)
+  }, [auth])
+
+  // 点击菜单外部时收起
+  useEffect(() => {
+    if (!authMenuOpen) return
+    const close = (e: MouseEvent) => {
+      if (authMenuRef.current && !authMenuRef.current.contains(e.target as Node)) {
+        setAuthMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [authMenuOpen])
+
+  const authSnippet = `${s.authPanel.comment}\nwindow.FLENDER_AUTH = ${JSON.stringify(auth, null, 2)}\n\n// localStorage["${AUTH_STORAGE_KEY}"] 同步存储\n// window 事件「${AUTH_EVENT}」状态变化时派发`
 
   return (
     <div className="min-h-screen bg-black text-white antialiased">
@@ -108,6 +200,40 @@ export default function Home() {
             >
               {s.nav.contact}
             </a>
+            {/* 登录状态切换 */}
+            <div className="relative" ref={authMenuRef}>
+              <button
+                onClick={() => setAuthMenuOpen((o) => !o)}
+                className={`flex items-center gap-2 border px-4 py-1.5 transition ${
+                  auth.isLoggedIn
+                    ? 'border-green-500/60 text-green-400 hover:border-green-400'
+                    : 'border-white/30 text-white/80 hover:border-white hover:text-white'
+                }`}
+              >
+                {auth.isLoggedIn && <span className="h-2 w-2 rounded-full bg-green-400" />}
+                {auth.isLoggedIn
+                  ? `${s.auth.loggedIn} · ${auth.user?.name ?? ''}`
+                  : s.auth.login}
+              </button>
+              {authMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-48 border border-white/10 bg-black text-white/80 shadow-lg">
+                  <button
+                    onClick={() => { setAuth(loggedInState()); setAuthMenuOpen(false) }}
+                    className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition hover:bg-white/10"
+                  >
+                    {s.auth.optionIn}
+                    {auth.isLoggedIn && <span className="text-green-400">✓</span>}
+                  </button>
+                  <button
+                    onClick={() => { setAuth(loggedOutState()); setAuthMenuOpen(false) }}
+                    className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition hover:bg-white/10"
+                  >
+                    {s.auth.optionOut}
+                    {!auth.isLoggedIn && <span className="text-green-400">✓</span>}
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
               className="border border-white/30 px-3 py-1.5 text-white/80 transition hover:border-white hover:text-white"
@@ -115,13 +241,26 @@ export default function Home() {
               {lang === 'zh' ? 'EN' : '中文'}
             </button>
           </nav>
-          {/* 移动端：语言切换 */}
-          <button
-            onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
-            className="border border-white/30 px-3 py-1.5 text-sm text-white/80 md:hidden"
-          >
-            {lang === 'zh' ? 'EN' : '中文'}
-          </button>
+          {/* 移动端：登录切换 + 语言切换 */}
+          <div className="flex items-center gap-2 md:hidden">
+            <button
+              onClick={() => setAuth(auth.isLoggedIn ? loggedOutState() : loggedInState())}
+              className={`flex items-center gap-2 border px-3 py-1.5 text-sm ${
+                auth.isLoggedIn
+                  ? 'border-green-500/60 text-green-400'
+                  : 'border-white/30 text-white/80'
+              }`}
+            >
+              {auth.isLoggedIn && <span className="h-2 w-2 rounded-full bg-green-400" />}
+              {auth.isLoggedIn ? s.auth.loggedIn : s.auth.login}
+            </button>
+            <button
+              onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
+              className="border border-white/30 px-3 py-1.5 text-sm text-white/80"
+            >
+              {lang === 'zh' ? 'EN' : '中文'}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -225,6 +364,14 @@ export default function Home() {
           <p className="text-xs text-white/30">{s.footer.note}</p>
         </div>
       </footer>
+
+      {/* 登录状态代码面板：实时展示 window.FLENDER_AUTH，供集成系统参考 */}
+      <div className="fixed bottom-4 left-4 z-40 w-[22rem] max-w-[calc(100vw-2rem)] border border-white/10 bg-black/85 p-4 font-mono text-[11px] leading-relaxed text-white/70 backdrop-blur">
+        <p className="mb-2 text-xs font-semibold tracking-wide text-[#0098DB]">
+          {s.authPanel.title}
+        </p>
+        <pre className="max-h-64 overflow-auto whitespace-pre-wrap">{authSnippet}</pre>
+      </div>
     </div>
   )
 }
