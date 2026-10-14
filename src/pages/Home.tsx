@@ -7,6 +7,7 @@ interface AuthUser {
   id: string
   name: string
   email: string
+  phone?: string
 }
 
 interface AuthState {
@@ -58,6 +59,7 @@ const t = {
     nav: { products: '产品', company: '公司', sustainability: '可持续性', contact: '联系我们' },
     auth: {
       login: '登录',
+      register: '注册',
       loggedIn: '已登录',
       optionIn: '状态：已登录',
       optionOut: '状态：未登录',
@@ -68,6 +70,19 @@ const t = {
       accountLabel: '模拟账号',
       confirm: '模拟登录',
       cancel: '取消',
+      goRegister: '没有账号？去注册',
+    },
+    regModal: {
+      title: '注册',
+      desc: '请填写以下信息完成模拟注册，注册成功后将自动登录。',
+      name: '姓名',
+      phone: '手机号',
+      email: '邮箱',
+      submit: '注册并登录',
+      cancel: '取消',
+      errName: '请输入姓名',
+      errPhone: '请输入有效的 11 位手机号',
+      errEmail: '请输入有效的邮箱地址',
     },
     authPanel: {
       title: '登录状态 · 供集成系统读取',
@@ -115,6 +130,7 @@ const t = {
     nav: { products: 'Products', company: 'Company', sustainability: 'Sustainability', contact: 'Contact' },
     auth: {
       login: 'Sign in',
+      register: 'Register',
       loggedIn: 'Signed in',
       optionIn: 'Status: Signed in',
       optionOut: 'Status: Guest',
@@ -125,6 +141,19 @@ const t = {
       accountLabel: 'Demo account',
       confirm: 'Sign in (demo)',
       cancel: 'Cancel',
+      goRegister: 'No account? Register',
+    },
+    regModal: {
+      title: 'Register',
+      desc: 'Fill in the information below to simulate registration. You will be signed in automatically after registering.',
+      name: 'Name',
+      phone: 'Phone',
+      email: 'Email',
+      submit: 'Register & Sign in',
+      cancel: 'Cancel',
+      errName: 'Please enter your name',
+      errPhone: 'Please enter a valid 11-digit phone number',
+      errEmail: 'Please enter a valid email address',
     },
     authPanel: {
       title: 'Auth state · for integrated systems',
@@ -175,6 +204,9 @@ export default function Home() {
   const [auth, setAuth] = useState<AuthState>(readStoredAuth)
   const [authMenuOpen, setAuthMenuOpen] = useState(false)
   const [showLoginModal, setShowLoginModal] = useState(false)
+  const [showRegisterModal, setShowRegisterModal] = useState(false)
+  const [regForm, setRegForm] = useState({ name: '', phone: '', email: '' })
+  const [regErrors, setRegErrors] = useState<{ name?: string; phone?: string; email?: string }>({})
   const [pendingAction, setPendingAction] = useState<'contact' | 'widget' | null>(null)
   const authMenuRef = useRef<HTMLDivElement>(null)
   const authRef = useRef(auth)
@@ -241,6 +273,37 @@ export default function Home() {
     }
   }
 
+  // 模拟注册：校验姓名 / 手机号 / 邮箱，通过后自动登录
+  const validateReg = () => {
+    const errs: { name?: string; phone?: string; email?: string } = {}
+    if (!regForm.name.trim()) errs.name = s.regModal.errName
+    if (!/^1[3-9]\d{9}$/.test(regForm.phone.trim())) errs.phone = s.regModal.errPhone
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regForm.email.trim())) errs.email = s.regModal.errEmail
+    setRegErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  const handleRegister = () => {
+    if (!validateReg()) return
+    const user: AuthUser = {
+      id: 'u' + Date.now(),
+      name: regForm.name.trim(),
+      email: regForm.email.trim(),
+      phone: regForm.phone.trim(),
+    }
+    const action = pendingAction
+    setAuth({ isLoggedIn: true, user, loginAt: new Date().toISOString() })
+    setShowRegisterModal(false)
+    setRegForm({ name: '', phone: '', email: '' })
+    setRegErrors({})
+    setPendingAction(null)
+    // 若因点击客服/联系我们而引导至此，注册登录成功后继续原操作
+    setTimeout(() => {
+      if (action === 'contact') scrollToContact()
+      if (action === 'widget') openWidget()
+    }, 100)
+  }
+
   const handleModalLogin = () => {
     const action = pendingAction
     setAuth(loggedInState())
@@ -271,6 +334,13 @@ export default function Home() {
             >
               {s.nav.contact}
             </a>
+            {/* 注册入口 */}
+            <button
+              onClick={() => setShowRegisterModal(true)}
+              className="border border-white/30 px-4 py-1.5 text-white/80 transition hover:border-white hover:text-white"
+            >
+              {s.auth.register}
+            </button>
             {/* 登录状态切换 */}
             <div className="relative" ref={authMenuRef}>
               <button
@@ -312,8 +382,14 @@ export default function Home() {
               {lang === 'zh' ? 'EN' : '中文'}
             </button>
           </nav>
-          {/* 移动端：登录切换 + 语言切换 */}
+          {/* 移动端：注册 + 登录切换 + 语言切换 */}
           <div className="flex items-center gap-2 md:hidden">
+            <button
+              onClick={() => setShowRegisterModal(true)}
+              className="border border-white/30 px-3 py-1.5 text-sm text-white/80"
+            >
+              {s.auth.register}
+            </button>
             <button
               onClick={() => setAuth(auth.isLoggedIn ? loggedOutState() : loggedInState())}
               className={`flex items-center gap-2 border px-3 py-1.5 text-sm ${
@@ -465,6 +541,73 @@ export default function Home() {
                 className="flex-1 border border-white/30 py-2.5 text-sm text-white/80 transition hover:border-white hover:text-white"
               >
                 {s.loginModal.cancel}
+              </button>
+            </div>
+            <button
+              onClick={() => { setShowLoginModal(false); setShowRegisterModal(true) }}
+              className="mt-4 w-full text-center text-xs text-[#0098DB] transition hover:underline"
+            >
+              {s.loginModal.goRegister}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 注册弹窗：收集姓名 / 手机号 / 邮箱，注册成功自动登录 */}
+      {showRegisterModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4"
+          onClick={() => setShowRegisterModal(false)}
+        >
+          <div
+            className="w-full max-w-sm border border-white/10 bg-[#0d0d0d] p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold">{s.regModal.title}</h3>
+            <p className="mt-3 text-sm leading-relaxed text-white/60">{s.regModal.desc}</p>
+            <div className="mt-6 space-y-4">
+              <div>
+                <label className="mb-1 block text-xs text-white/50">{s.regModal.name}</label>
+                <input
+                  value={regForm.name}
+                  onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
+                  className="w-full border border-white/20 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-[#0098DB]"
+                />
+                {regErrors.name && <p className="mt-1 text-xs text-red-400">{regErrors.name}</p>}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-white/50">{s.regModal.phone}</label>
+                <input
+                  value={regForm.phone}
+                  onChange={(e) => setRegForm({ ...regForm, phone: e.target.value })}
+                  placeholder="13800138000"
+                  className="w-full border border-white/20 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-[#0098DB]"
+                />
+                {regErrors.phone && <p className="mt-1 text-xs text-red-400">{regErrors.phone}</p>}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-white/50">{s.regModal.email}</label>
+                <input
+                  value={regForm.email}
+                  onChange={(e) => setRegForm({ ...regForm, email: e.target.value })}
+                  placeholder="name@example.com"
+                  className="w-full border border-white/20 bg-black px-3 py-2 text-sm text-white outline-none transition focus:border-[#0098DB]"
+                />
+                {regErrors.email && <p className="mt-1 text-xs text-red-400">{regErrors.email}</p>}
+              </div>
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={handleRegister}
+                className="flex-1 bg-[#0098DB] py-2.5 text-sm font-medium text-white transition hover:bg-[#007fb8]"
+              >
+                {s.regModal.submit}
+              </button>
+              <button
+                onClick={() => setShowRegisterModal(false)}
+                className="flex-1 border border-white/30 py-2.5 text-sm text-white/80 transition hover:border-white hover:text-white"
+              >
+                {s.regModal.cancel}
               </button>
             </div>
           </div>
