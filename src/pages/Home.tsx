@@ -175,13 +175,33 @@ export default function Home() {
   const [auth, setAuth] = useState<AuthState>(readStoredAuth)
   const [authMenuOpen, setAuthMenuOpen] = useState(false)
   const [showLoginModal, setShowLoginModal] = useState(false)
+  const [pendingAction, setPendingAction] = useState<'contact' | 'widget' | null>(null)
   const authMenuRef = useRef<HTMLDivElement>(null)
+  const authRef = useRef(auth)
+  authRef.current = auth
   const s = t[lang]
 
   // 状态同步到 window.FLENDER_AUTH / localStorage / 自定义事件
   useEffect(() => {
     publishAuth(auth)
   }, [auth])
+
+  // 拦截纷享销客悬浮客服图标：未登录点击时改为弹出登录框
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (authRef.current.isLoggedIn) return
+      const target = e.target as HTMLElement | null
+      if (!target || typeof target.closest !== 'function') return
+      if (target.closest('.fs-im-wrapper, #im-controller-icon')) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setPendingAction('widget')
+        setShowLoginModal(true)
+      }
+    }
+    document.addEventListener('click', handler, true)
+    return () => document.removeEventListener('click', handler, true)
+  }, [])
 
   // 点击菜单外部时收起
   useEffect(() => {
@@ -199,20 +219,37 @@ export default function Home() {
     document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  const openWidget = () => {
+    const fsChat = (window as unknown as Record<string, unknown>).FSImChat as
+      | { openChatDialog?: (opts: unknown) => void }
+      | undefined
+    try {
+      fsChat?.openChatDialog?.({ userCustomData: { initStatus: 'open' } })
+    } catch {
+      /* 客服插件未就绪时忽略 */
+    }
+  }
+
   // 点击「联系我们」：未登录先弹登录框，登录成功后再继续
   const handleContactClick = (e: React.MouseEvent) => {
     e.preventDefault()
     if (auth.isLoggedIn) {
       scrollToContact()
     } else {
+      setPendingAction('contact')
       setShowLoginModal(true)
     }
   }
 
   const handleModalLogin = () => {
+    const action = pendingAction
     setAuth(loggedInState())
     setShowLoginModal(false)
-    setTimeout(scrollToContact, 100)
+    setPendingAction(null)
+    setTimeout(() => {
+      if (action === 'contact') scrollToContact()
+      if (action === 'widget') openWidget()
+    }, 100)
   }
 
   return (
