@@ -180,8 +180,6 @@ export default function Home() {
     return () => document.removeEventListener('mousedown', close)
   }, [authMenuOpen])
 
-  const authSnippet = `${s.authPanel.comment}\nwindow.FLENDER_AUTH = ${JSON.stringify(auth, null, 2)}\n\n// localStorage["${AUTH_STORAGE_KEY}"] 同步存储\n// window 事件「${AUTH_EVENT}」状态变化时派发`
-
   return (
     <div className="min-h-screen bg-black text-white antialiased">
       {/* 顶部导航 */}
@@ -364,14 +362,6 @@ export default function Home() {
           <p className="text-xs text-white/30">{s.footer.note}</p>
         </div>
       </footer>
-
-      {/* 登录状态代码面板：实时展示 window.FLENDER_AUTH，供集成系统参考 */}
-      <div className="fixed bottom-4 left-4 z-40 w-[22rem] max-w-[calc(100vw-2rem)] border border-white/10 bg-black/85 p-4 font-mono text-[11px] leading-relaxed text-white/70 backdrop-blur">
-        <p className="mb-2 text-xs font-semibold tracking-wide text-[#0098DB]">
-          {s.authPanel.title}
-        </p>
-        <pre className="max-h-64 overflow-auto whitespace-pre-wrap">{authSnippet}</pre>
-      </div>
     </div>
   )
 }
